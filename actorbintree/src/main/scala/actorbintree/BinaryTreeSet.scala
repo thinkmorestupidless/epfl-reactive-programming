@@ -54,7 +54,7 @@ class BinaryTreeSet extends Actor {
   import BinaryTreeSet._
   import BinaryTreeNode._
 
-  def createRoot: ActorRef = context.actorOf(BinaryTreeNode.props(0, initiallyRemoved = true))
+  def createRoot: ActorRef = context.actorOf(BinaryTreeNode.props(0, initiallyRemoved = false))
 
   var root = createRoot
 
@@ -69,6 +69,7 @@ class BinaryTreeSet extends Actor {
   val normal: Receive = {
     case m: Contains => root ! m
     case m: Insert => root ! m
+    case m: Remove => root ! m
   }
 
   // optional
@@ -110,6 +111,7 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor wit
   /** Handles `Operation` messages and `CopyTo` requests. */
   val normal: Receive = {
     case Insert(requester, id, elemToInsert) =>
+      log.info("INSERT {}, {}, {}", id, elem, elemToInsert)
       if (elemToInsert == elem) {
         requester ! OperationFinished(id)
       } else {
@@ -117,14 +119,16 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor wit
         if (subtrees.contains(position)) {
           subtrees(position) ! Insert(requester, id, elemToInsert)
         } else {
-          subtrees += position -> context.actorOf(props(elemToInsert, true))
+          subtrees += position -> context.actorOf(props(elemToInsert, false))
           requester ! OperationFinished(id)
         }
       }
 
-    case Contains(requester, id, elemToSearch) => {
+    case Contains(requester, id, elemToSearch) =>
+      log.info("CONTAINS => {}, {}, {}", id, elem, elemToSearch)
       if (elemToSearch == elem) {
-        requester ! ContainsResult(id, true)
+        log.info("contains {} => {}", elemToSearch, removed)
+        requester ! ContainsResult(id, !removed)
       } else {
         val position: Position = if (elemToSearch < elem) Left else Right
         if (subtrees.contains(position)) {
@@ -133,7 +137,20 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor wit
           requester ! ContainsResult(id, false)
         }
       }
-    }
+
+    case Remove(requester, id, elemToRemove) =>
+      log.info("REMOVE {}, {}, {}", id, elem, elemToRemove)
+      if (elemToRemove == elem) {
+        removed = true
+        requester ! OperationFinished(id)
+      } else {
+        val position: Position = if (elemToRemove == elem) Left else Right
+        if (subtrees.contains(position)) {
+          subtrees(position) ! Remove(requester, id, elemToRemove)
+        } else {
+          requester ! OperationFinished(id)
+        }
+      }
   }
 
   // optional
