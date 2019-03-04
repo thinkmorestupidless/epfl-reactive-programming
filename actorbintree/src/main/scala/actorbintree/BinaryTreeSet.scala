@@ -66,7 +66,10 @@ class BinaryTreeSet extends Actor {
 
   // optional
   /** Accepts `Operation` and `GC` messages. */
-  val normal: Receive = { case _ => ??? }
+  val normal: Receive = {
+    case m: Contains => root ! m
+    case m: Insert => root ! m
+  }
 
   // optional
   /** Handles messages while garbage collection is performed.
@@ -89,7 +92,7 @@ object BinaryTreeNode {
   def props(elem: Int, initiallyRemoved: Boolean) = Props(classOf[BinaryTreeNode],  elem, initiallyRemoved)
 }
 
-class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
+class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor with ActorLogging {
   import BinaryTreeNode._
   import BinaryTreeSet._
 
@@ -99,9 +102,39 @@ class BinaryTreeNode(val elem: Int, initiallyRemoved: Boolean) extends Actor {
   // optional
   def receive = normal
 
+  def insert(position: Position, elemToInsert: Int): Unit = {
+
+  }
+
   // optional
   /** Handles `Operation` messages and `CopyTo` requests. */
-  val normal: Receive = { case _ => ??? }
+  val normal: Receive = {
+    case Insert(requester, id, elemToInsert) =>
+      if (elemToInsert == elem) {
+        requester ! OperationFinished(id)
+      } else {
+        val position: Position = if (elemToInsert < elem) Left else Right
+        if (subtrees.contains(position)) {
+          subtrees(position) ! Insert(requester, id, elemToInsert)
+        } else {
+          subtrees += position -> context.actorOf(props(elemToInsert, true))
+          requester ! OperationFinished(id)
+        }
+      }
+
+    case Contains(requester, id, elemToSearch) => {
+      if (elemToSearch == elem) {
+        requester ! ContainsResult(id, true)
+      } else {
+        val position: Position = if (elemToSearch < elem) Left else Right
+        if (subtrees.contains(position)) {
+          subtrees(position) ! Contains(requester, id, elemToSearch)
+        } else {
+          requester ! ContainsResult(id, false)
+        }
+      }
+    }
+  }
 
   // optional
   /** `expected` is the set of ActorRefs whose replies we are waiting for,

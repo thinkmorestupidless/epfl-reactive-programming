@@ -60,7 +60,6 @@ class BinaryTreeSuite(_system: ActorSystem) extends TestKit(_system) with FunSui
 
     expectMsg(OperationFinished(2))
     expectMsg(ContainsResult(3, true))
-    ()
   }
 
   test("instruction example") {
